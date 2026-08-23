@@ -1,0 +1,4 @@
+[input]
+devices = ["/dev/input/pttd-mouse", "/dev/input/pttd-keyboard"]
+ptt_key = "KEY_F9"
+toggle_key = "KEY_F10"
