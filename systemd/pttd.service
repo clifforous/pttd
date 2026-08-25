@@ -1,0 +1,15 @@
+[Unit]
+Description=Push-to-talk daemon
+Wants=pipewire.service wireplumber.service
+After=graphical-session.target pipewire.service wireplumber.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/pttd
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=graphical-session.target
