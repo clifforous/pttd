@@ -1,2 +1,2 @@
-SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Logitech G502 X LS", ATTRS{uniq}=="60-e6-1a-1f", SYMLINK+="input/pttd-mouse", TAG+="uaccess"
-SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="AT Translated Set 2 keyboard", ATTRS{phys}=="isa0060/serio0/input0", SYMLINK+="input/pttd-keyboard", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Logitech G502 X LS", ATTRS{uniq}=="c6-eb-16-e1", SYMLINK+="input/pttd-mouse", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Logitech G815 RGB MECHANICAL GAMING KEYBOARD", ATTRS{uniq}=="0B8032573031", SYMLINK+="input/pttd-keyboard", TAG+="uaccess"
