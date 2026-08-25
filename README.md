@@ -11,7 +11,7 @@ cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 cargo build --release --locked
-udevadm verify --resolve-names=never udev/70-pttd.rules
+udevadm verify --resolve-names=never udev/desktop/70-pttd.rules udev/laptop/70-pttd.rules
 ```
 
 For a foreground source run, after configuring device access:
@@ -22,9 +22,20 @@ cargo run --locked
 
 ## Initial installation
 
-### Verify device identity first
+### Select this computer's profile
 
-Do this before running any `sudo` command. Use the two verified stable links; do not substitute transient `eventN` paths.
+The hardware-specific udev rules are kept in separate profiles so changes made on one computer do not replace the rules for the other. Select the profile for the computer being configured and keep these variables in the current shell for the remaining commands:
+
+```sh
+PTTD_PROFILE=desktop # use laptop on the laptop
+UDEV_RULE="udev/$PTTD_PROFILE/70-pttd.rules"
+[ -f "$UDEV_RULE" ]
+udevadm verify --resolve-names=never "$UDEV_RULE"
+```
+
+### Verify desktop device identity first
+
+The identity and live-acceptance details below document the desktop profile. Do this before running any `sudo` command. Use the two verified stable links; do not substitute transient `eventN` paths. On the laptop, verify its devices against `udev/laptop/70-pttd.rules` before installation rather than using these desktop paths and identities.
 
 ```sh
 MOUSE_BY_ID=/dev/input/by-id/usb-Logitech_USB_Receiver-if02-event-mouse
@@ -53,7 +64,7 @@ install -Dm755 target/release/pttd "$HOME/.local/bin/pttd"
 systemd-analyze --user verify systemd/pttd.service
 install -Dm644 examples/config.toml "$HOME/.config/pttd/config.toml"
 install -Dm644 systemd/pttd.service "$HOME/.config/systemd/user/pttd.service"
-sudo install -Dm644 udev/70-pttd.rules /etc/udev/rules.d/70-pttd.rules
+sudo install -Dm644 "$UDEV_RULE" /etc/udev/rules.d/70-pttd.rules
 ```
 
 The installed example config is exactly:
@@ -128,7 +139,7 @@ Check service status and the journal for device or audio errors after each case.
 
 This update and rollback workflow applies only after the integration assets have been reviewed and committed into a clean known-good revision. Until such a revision exists, a failed first install or pre-commit change must use the complete first-install recovery and uninstall procedure below; Git rollback cannot restore untracked integration assets. Commits remain owner-controlled and none of these commands creates one.
 
-Record the currently deployed, known-good Git revision before changing revisions. Repeat the exact-link identity setup in the current shell before this transaction so its node and DEVPATH variables are current. A candidate update is one complete transaction: start from a clean checkout, run verification and build, reinstall the exact binary, config, and unit, reinstall and reprocess the root rule only if that tracked asset changed, then reload, restart, and verify:
+Record the currently deployed, known-good Git revision before changing revisions. Repeat the profile selection and exact-link identity setup in the current shell before this transaction so the rule, node, and DEVPATH variables are current. A candidate update is one complete transaction: start from a clean checkout, run verification and build, reinstall the exact binary, config, unit, and selected root rule, then reload, restart, and verify:
 
 ```sh
 test -z "$(git status --porcelain)"
@@ -144,22 +155,19 @@ install -Dm755 target/release/pttd "$HOME/.local/bin/pttd"
 systemd-analyze --user verify systemd/pttd.service
 install -Dm644 examples/config.toml "$HOME/.config/pttd/config.toml"
 install -Dm644 systemd/pttd.service "$HOME/.config/systemd/user/pttd.service"
-if ! git diff --quiet "$KNOWN_GOOD" HEAD -- udev/70-pttd.rules; then
-    sudo install -Dm644 udev/70-pttd.rules /etc/udev/rules.d/70-pttd.rules
-    sudo udevadm control --reload-rules
-    sudo udevadm trigger --action=add --settle "/sys$MOUSE_DEVPATH" "/sys$KEYBOARD_DEVPATH"
-    udevadm settle
-fi
+sudo install -Dm644 "$UDEV_RULE" /etc/udev/rules.d/70-pttd.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger --action=add --settle "/sys$MOUSE_DEVPATH" "/sys$KEYBOARD_DEVPATH"
+udevadm settle
 systemctl --user daemon-reload
 systemctl --user restart pttd.service
 systemctl --user status pttd.service
 journalctl --user --unit=pttd.service --since=-5min
 ```
 
-Repeat the link, property, ACL, and live checks relevant to the changed assets. If the update fails, record the failed candidate revision, stop the service, require a clean tree, check out the recorded known-good revision, and repeat the entire install transaction from that checkout. Do not restore a mixture of old and new artifacts:
+Repeat the link, property, ACL, and live checks relevant to the changed assets. If the update fails, stop the service, require a clean tree, check out the recorded known-good revision, and repeat the entire install transaction from that checkout. Do not restore a mixture of old and new artifacts:
 
 ```sh
-FAILED_REVISION=$(git rev-parse HEAD)
 systemctl --user stop pttd.service
 test -z "$(git status --porcelain)"
 git switch --detach "$KNOWN_GOOD"
@@ -171,12 +179,10 @@ install -Dm755 target/release/pttd "$HOME/.local/bin/pttd"
 systemd-analyze --user verify systemd/pttd.service
 install -Dm644 examples/config.toml "$HOME/.config/pttd/config.toml"
 install -Dm644 systemd/pttd.service "$HOME/.config/systemd/user/pttd.service"
-if ! git diff --quiet "$FAILED_REVISION" "$KNOWN_GOOD" -- udev/70-pttd.rules; then
-    sudo install -Dm644 udev/70-pttd.rules /etc/udev/rules.d/70-pttd.rules
-    sudo udevadm control --reload-rules
-    sudo udevadm trigger --action=add --settle "/sys$MOUSE_DEVPATH" "/sys$KEYBOARD_DEVPATH"
-    udevadm settle
-fi
+sudo install -Dm644 "$UDEV_RULE" /etc/udev/rules.d/70-pttd.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger --action=add --settle "/sys$MOUSE_DEVPATH" "/sys$KEYBOARD_DEVPATH"
+udevadm settle
 systemctl --user daemon-reload
 systemctl --user start pttd.service
 systemctl --user status pttd.service
@@ -237,6 +243,6 @@ done
 
 Repository source, a successful build, files copied into installation paths, and a service actually running in a graphical session are distinct states. A commit or successful automated check does not prove installation, startup, live acceptance, or deployment on another machine.
 
-The binary, user service, and `/dev/input/pttd-*` configuration contract are generic. The tracked udev file is the verified hardware profile for one desktop. A laptop should inspect its real devices and provide host-specific same-parent udev matches and matching stable config links while reusing the daemon and service; this repository does not provide an installer or hypothetical laptop rules.
+The binary, user service, and `/dev/input/pttd-*` configuration contract are generic. The tracked desktop and laptop udev profiles contain their respective hardware-specific matches while providing those same stable links. Keep computer-specific changes in the corresponding profile rather than replacing another computer's rules.
 
 IPC and Noctalia integration are deferred and optional. They are not required to install or operate this slice.
